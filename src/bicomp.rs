@@ -44,6 +44,10 @@ impl BiCompNum {
         self.0 == 0f64 && self.1 == 0f64 && self.2 == 0f64 && self.3 == 0f64
     }
 
+    pub fn is_one(&self) -> bool {
+        self.0 == 1f64 && self.1 == 0f64 && self.2 == 0f64 && self.3 == 0f64
+    }
+
     pub fn first_half(&self) -> BiCompNum {
         BiCompNum(self.0, self.1, 0., 0.)
     }
@@ -52,7 +56,9 @@ impl BiCompNum {
         BiCompNum(0., 0., self.2, self.3)
     }
 
-    pub fn exp_tailor(&self, precision: i32) -> BiCompNum {
+    pub fn exp_tailor(&self, precision: u32) -> BiCompNum {
+        assert!(precision >= 1, "Precision must be at least 1");
+
         let mut term = BiCompNum::one();
         let mut res = term;
 
@@ -68,6 +74,14 @@ impl BiCompNum {
         let w = self.second_half() + Self::one();
 
         z * w
+    }
+
+    pub fn checked_div(self, rhs: Self) -> Option<Self> {
+        if rhs.0 + rhs.1 == 0. {
+            return None;
+        }
+
+        Some(self / rhs)
     }
 }
 
@@ -141,6 +155,45 @@ impl MulAssign for BiCompNum {
     }
 }
 
+impl std::ops::Div for BiCompNum {
+    type Output = Self;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        if rhs.is_one() {
+            return self;
+        }
+
+        let (a1, b1, c1, d1) = (self.0, self.1, self.2, self.3);
+        let (a2, b2, c2, d2) = (rhs.0, rhs.1, rhs.2, rhs.3);
+
+        let denom = a2 * a2 + b2 * b2;
+
+        // z part
+        let zr = (a1 * a2 + b1 * b2) / denom;
+        let zi = (b1 * a2 - a1 * b2) / denom;
+
+        // numerator: w1*z2 - z1*w2
+        let w1z2_r = c1 * a2 - d1 * b2;
+        let w1z2_i = c1 * b2 + d1 * a2;
+
+        let z1w2_r = a1 * c2 - b1 * d2;
+        let z1w2_i = a1 * d2 + b1 * c2;
+
+        let wr_num = w1z2_r - z1w2_r;
+        let wi_num = w1z2_i - z1w2_i;
+
+        // z2^2
+        let z2_sq_r = a2 * a2 - b2 * b2;
+        let z2_sq_i = 2.0 * a2 * b2;
+
+        let denom2 = z2_sq_r * z2_sq_r + z2_sq_i * z2_sq_i;
+
+        let wr = (wr_num * z2_sq_r + wi_num * z2_sq_i) / denom2;
+        let wi = (wi_num * z2_sq_r - wr_num * z2_sq_i) / denom2;
+
+        BiCompNum(zr, zi, wr, wi)
+    }
+}
 
 impl<T> std::ops::Mul<T> for BiCompNum
 where
@@ -169,6 +222,21 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    mod helper {
+        use super::*;
+
+        pub fn approx_eq(a: f64, b: f64, eps: f64) -> bool {
+            (a - b).abs() < eps
+        }
+
+        pub fn approx_eq_bi(a: BiCompNum, b: BiCompNum, eps: f64) -> bool {
+            approx_eq(a.0, b.0, eps)
+                && approx_eq(a.1, b.1, eps)
+                && approx_eq(a.2, b.2, eps)
+                && approx_eq(a.3, b.3, eps)
+        }
+    }
 
     #[test]
     fn test_new() {
@@ -303,5 +371,101 @@ mod tests {
         assert!(2.28 < e.1 && e.1 < 2.29);
         assert!(-0.82 < e.2 && e.2 < -0.8);
         assert!(3.75 < e.3 && e.3 < 3.76);
+    }
+
+    #[test]
+    fn div_by_one() {
+        let x = BiCompNum(2.0, -3.0, 4.0, 5.0);
+        let one = BiCompNum(1.0, 0.0, 0.0, 0.0);
+
+        let result = x.checked_div(one).unwrap();
+        assert!(helper::approx_eq_bi(result, x, 1e-5));
+    }
+
+    #[test]
+    fn div_complex_only() {
+        let x = BiCompNum(1.0, 2.0, 0.0, 0.0);
+        let y = BiCompNum(3.0, -1.0, 0.0, 0.0);
+
+        let result = x.checked_div(y).unwrap();
+
+        // Expected: (1+2i)/(3-i) = (1+2i)*(3+i)/(10) = (1 + 7i)/10
+        let expected = BiCompNum(0.1, 0.7, 0.0, 0.0);
+
+        assert!(helper::approx_eq_bi(result, expected, 1e-5));
+    }
+    #[test]
+
+    fn div_epsilon_numerator() {
+        let x = BiCompNum(0.0, 0.0, 1.0, 2.0); // ε(1+2i)
+        let y = BiCompNum(1.0, 0.0, 0.0, 0.0); // 1
+
+        let result = x.checked_div(y).unwrap();
+
+        assert!(helper::approx_eq_bi(result, x, 1e-5));
+    }
+    #[test]
+    fn div_epsilon_in_denominator() {
+        let x = BiCompNum(1.0, 0.0, 0.0, 0.0); // 1
+        let y = BiCompNum(1.0, 0.0, 1.0, 0.0); // 1 + ε
+
+        let result = x.checked_div(y).unwrap();
+
+        // (1) / (1 + ε) = 1 - ε
+        let expected = BiCompNum(1.0, 0.0, -1.0, 0.0);
+
+        assert!(helper::approx_eq_bi(result, expected, 1e-5));
+    }
+    #[test]
+    fn div_general_case() {
+        let x = BiCompNum(1.0, 2.0, 3.0, 4.0);
+        let y = BiCompNum(2.0, -1.0, 1.0, 1.0);
+
+        let result = x.checked_div(y).unwrap();
+
+        // Validate via inverse: result * y ≈ x
+        let recomposed = result * y;
+        dbg!(recomposed);
+
+        assert!(helper::approx_eq_bi(recomposed, x, 1e-4));
+    }
+
+    #[test]
+    fn div_inverse_property() {
+        let x = BiCompNum(2.0, 1.0, 3.0, -1.0);
+        let y = BiCompNum(1.5, -0.5, 2.0, 0.5);
+
+        let r1 = x.checked_div(y).unwrap();
+        let r2 = y.checked_div(x).unwrap();
+
+        let one = r1 * r2;
+
+        let expected = BiCompNum(1.0, 0.0, 0.0, 0.0);
+        dbg!(one);
+
+        assert!(helper::approx_eq_bi(one, expected, 1e-4));
+    }
+    #[test]
+    fn div_non_invertible_pure_epsilon() {
+        let x = BiCompNum(1.0, 0.0, 0.0, 0.0);
+        let y = BiCompNum(0.0, 0.0, 1.0, 0.0); // ε
+
+        assert!(x.checked_div(y).is_none());
+    }
+
+    #[test]
+    fn div_division_by_zero() {
+        let x = BiCompNum(1.0, 2.0, 3.0, 4.0);
+        let y = BiCompNum(0.0, 0.0, 0.0, 0.0);
+
+        assert!(x.checked_div(y).is_none());
+    }
+
+    #[test]
+    fn div_non_invertible_no_complex_part() {
+        let x = BiCompNum(1.0, 0.0, 0.0, 0.0);
+        let y = BiCompNum(0.0, 0.0, 2.0, 3.0); // only ε part
+
+        assert!(x.checked_div(y).is_none());
     }
 }
