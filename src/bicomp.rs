@@ -3,6 +3,8 @@ use std::{
     ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign},
 };
 
+use crate::Complex;
+
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub struct BiCompNum(pub f64, pub f64, pub f64, pub f64);
 
@@ -46,6 +48,18 @@ impl BiCompNum {
 
     pub fn is_one(&self) -> bool {
         self.0 == 1f64 && self.1 == 0f64 && self.2 == 0f64 && self.3 == 0f64
+    }
+
+    fn z(&self) -> Complex {
+        Complex::new(self.0, self.1)
+    }
+
+    fn w(&self) -> Complex {
+        Complex::new(self.2, self.3)
+    }
+
+    fn from_complex(z: Complex, w: Complex) -> Self {
+        Self(z.re, z.im, w.re, w.im)
     }
 
     pub fn first_half(&self) -> BiCompNum {
@@ -159,39 +173,23 @@ impl std::ops::Div for BiCompNum {
     type Output = Self;
 
     fn div(self, rhs: Self) -> Self::Output {
-        if rhs.is_one() {
-            return self;
-        }
+        let z1 = self.z();
+        let w1 = self.w();
 
-        let (a1, b1, c1, d1) = (self.0, self.1, self.2, self.3);
-        let (a2, b2, c2, d2) = (rhs.0, rhs.1, rhs.2, rhs.3);
+        let z2 = rhs.z();
+        let w2 = rhs.w();
 
-        let denom = a2 * a2 + b2 * b2;
+        let z = z1.div(z2);
 
-        // z part
-        let zr = (a1 * a2 + b1 * b2) / denom;
-        let zi = (b1 * a2 - a1 * b2) / denom;
+        let numerator = w1.mul(z2).mul(Complex::new(1.0, 0.0)).re - z1.mul(w2).re;
 
-        // numerator: w1*z2 - z1*w2
-        let w1z2_r = c1 * a2 - d1 * b2;
-        let w1z2_i = c1 * b2 + d1 * a2;
+        let numerator_i = w1.mul(z2).im - z1.mul(w2).im;
 
-        let z1w2_r = a1 * c2 - b1 * d2;
-        let z1w2_i = a1 * d2 + b1 * c2;
+        let z2_sq = z2.mul(z2);
 
-        let wr_num = w1z2_r - z1w2_r;
-        let wi_num = w1z2_i - z1w2_i;
+        let w = Complex::new(numerator, numerator_i).div(z2_sq);
 
-        // z2^2
-        let z2_sq_r = a2 * a2 - b2 * b2;
-        let z2_sq_i = 2.0 * a2 * b2;
-
-        let denom2 = z2_sq_r * z2_sq_r + z2_sq_i * z2_sq_i;
-
-        let wr = (wr_num * z2_sq_r + wi_num * z2_sq_i) / denom2;
-        let wi = (wi_num * z2_sq_r - wr_num * z2_sq_i) / denom2;
-
-        BiCompNum(zr, zi, wr, wi)
+        BiCompNum::from_complex(z, w)
     }
 }
 
