@@ -91,11 +91,15 @@ impl BiCompNum {
     }
 
     pub fn checked_div(self, rhs: Self) -> Option<Self> {
-        if rhs.0 + rhs.1 == 0. {
+        if rhs.0 == 0.0 && rhs.1 == 0. {
             return None;
         }
 
         Some(self / rhs)
+    }
+
+    pub fn abs(&self) -> f64 {
+        return (self.0.powi(2) + self.1.powi(2) + self.2.powi(2) + self.3.powi(2)).sqrt();
     }
 }
 

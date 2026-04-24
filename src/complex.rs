@@ -28,4 +28,8 @@ impl Complex {
             im: (self.im * rhs.re - self.re * rhs.im) / denom,
         }
     }
+
+    pub fn abs(&self) -> f64 {
+        return (self.re.powi(2) + self.im.powi(2)).sqrt();
+    }
 }
