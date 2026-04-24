@@ -1,18 +1,18 @@
 use std::{
     fmt::Display,
-    ops::{Add, AddAssign, Div, Mul, MulAssign, Sub},
+    ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign},
 };
 
 #[derive(PartialEq, Debug, Clone, Copy)]
-pub struct BiCompNum(pub f32, pub f32, pub f32, pub f32);
+pub struct BiCompNum(pub f64, pub f64, pub f64, pub f64);
 
 impl BiCompNum {
-    pub fn new(a: f32, b: f32, c: f32, d: f32) -> Self {
+    pub fn new(a: f64, b: f64, c: f64, d: f64) -> Self {
         BiCompNum(a, b, c, d)
     }
 
     pub fn new_i(a: i32, b: i32, c: i32, d: i32) -> Self {
-        BiCompNum(a as f32, b as f32, c as f32, d as f32)
+        BiCompNum(a as f64, b as f64, c as f64, d as f64)
     }
 
     pub fn zero() -> Self {
@@ -41,7 +41,7 @@ impl BiCompNum {
     }
 
     pub fn is_zero(&self) -> bool {
-        self.0 == 0f32 && self.1 == 0f32 && self.2 == 0f32 && self.3 == 0f32
+        self.0 == 0f64 && self.1 == 0f64 && self.2 == 0f64 && self.3 == 0f64
     }
 
     pub fn first_half(&self) -> BiCompNum {
@@ -99,54 +99,6 @@ impl AddAssign for BiCompNum {
     }
 }
 
-impl Mul<f32> for BiCompNum {
-    type Output = Self;
-
-    fn mul(self, rhs: f32) -> Self::Output {
-        BiCompNum(self.0 * rhs, self.1 * rhs, self.2 * rhs, self.3 * rhs)
-    }
-}
-
-impl Mul<i32> for BiCompNum {
-    type Output = Self;
-
-    fn mul(self, rhs: i32) -> Self::Output {
-        self * (rhs as f32)
-    }
-}
-
-impl Mul<u32> for BiCompNum {
-    type Output = Self;
-
-    fn mul(self, rhs: u32) -> Self::Output {
-        self * (rhs as f32)
-    }
-}
-
-impl Div<f32> for BiCompNum {
-    type Output = Self;
-
-    fn div(self, rhs: f32) -> Self::Output {
-        BiCompNum(self.0 / rhs, self.1 / rhs, self.2 / rhs, self.3 / rhs)
-    }
-}
-
-impl Div<i32> for BiCompNum {
-    type Output = Self;
-
-    fn div(self, rhs: i32) -> Self::Output {
-        self / (rhs as f32)
-    }
-}
-
-impl Div<u32> for BiCompNum {
-    type Output = Self;
-
-    fn div(self, rhs: u32) -> Self::Output {
-        self / (rhs as f32)
-    }
-}
-
 impl Sub for BiCompNum {
     type Output = Self;
 
@@ -157,6 +109,12 @@ impl Sub for BiCompNum {
             self.2 - rhs.2,
             self.3 - rhs.3,
         )
+    }
+}
+
+impl SubAssign for BiCompNum {
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = *self - rhs;
     }
 }
 
@@ -180,6 +138,31 @@ impl Mul for BiCompNum {
 impl MulAssign for BiCompNum {
     fn mul_assign(&mut self, rhs: Self) {
         *self = *self * rhs;
+    }
+}
+
+
+impl<T> std::ops::Mul<T> for BiCompNum
+where
+    T: Into<f64>,
+{
+    type Output = Self;
+
+    fn mul(self, rhs: T) -> Self::Output {
+        let rhs = rhs.into();
+        BiCompNum(self.0 * rhs, self.1 * rhs, self.2 * rhs, self.3 * rhs)
+    }
+}
+
+impl<T> std::ops::Div<T> for BiCompNum
+where
+    T: Into<f64>,
+{
+    type Output = Self;
+
+    fn div(self, rhs: T) -> Self::Output {
+        let rhs = rhs.into();
+        BiCompNum(self.0 / rhs, self.1 / rhs, self.2 / rhs, self.3 / rhs)
     }
 }
 
@@ -248,7 +231,7 @@ mod tests {
     }
 
     #[test]
-    fn test_div_f32() {
+    fn test_div_f64() {
         let n = BiCompNum::new_i(2, 4, 6, 8);
         assert_eq!(n / 2.0, BiCompNum::new_i(1, 2, 3, 4));
     }
