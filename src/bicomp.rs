@@ -44,17 +44,30 @@ impl BiCompNum {
         self.0 == 0f32 && self.1 == 0f32 && self.2 == 0f32 && self.3 == 0f32
     }
 
-    pub fn exp(&self) -> BiCompNum {
-        const PRECISION: u32 = 10;
+    pub fn first_half(&self) -> BiCompNum {
+        BiCompNum(self.0, self.1, 0., 0.)
+    }
 
+    pub fn second_half(&self) -> BiCompNum {
+        BiCompNum(0., 0., self.2, self.3)
+    }
+
+    pub fn exp_tailor(&self, precision: i32) -> BiCompNum {
         let mut term = BiCompNum::one();
         let mut res = term;
 
-        for n in 1..=PRECISION {
+        for n in 1..=precision {
             term = term * *self / n;
             res += term;
         }
         res
+    }
+
+    pub fn exp(&self) -> BiCompNum {
+        let z = BiCompNum(self.1.cos(), self.1.sin(), 0., 0.) * self.0.exp();
+        let w = self.second_half() + Self::one();
+
+        z * w
     }
 }
 
@@ -83,6 +96,30 @@ impl Add for BiCompNum {
 impl AddAssign for BiCompNum {
     fn add_assign(&mut self, rhs: Self) {
         *self = *self + rhs;
+    }
+}
+
+impl Mul<f32> for BiCompNum {
+    type Output = Self;
+
+    fn mul(self, rhs: f32) -> Self::Output {
+        BiCompNum(self.0 * rhs, self.1 * rhs, self.2 * rhs, self.3 * rhs)
+    }
+}
+
+impl Mul<i32> for BiCompNum {
+    type Output = Self;
+
+    fn mul(self, rhs: i32) -> Self::Output {
+        self * (rhs as f32)
+    }
+}
+
+impl Mul<u32> for BiCompNum {
+    type Output = Self;
+
+    fn mul(self, rhs: u32) -> Self::Output {
+        self * (rhs as f32)
     }
 }
 
